@@ -545,7 +545,13 @@
 
   // Parse een eurobedrag uit tekst
   function parseEuroBedrag(tekst) {
-    tekst = tekst.toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim();
+    // Normaliseer (tekst kan al genormaliseerd zijn vanuit parsePrijs)
+    tekst = tekst.toLowerCase()
+      .replace(/×/g, 'x')
+      .replace(/€\s*/g, 'euro ')
+      .replace(/,/g, '.')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     // Directe getallen: "3.50", "10.50"
     let m = tekst.match(/^(\d+)[.](\d{2})$/);

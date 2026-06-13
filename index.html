@@ -289,6 +289,16 @@
   </ul>
 </div>
 
+<!-- Totaal overlay -->
+<div id="totaalOverlay" style="display:none;position:fixed;inset:0;background:rgba(30,45,30,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:1rem;">
+  <div style="background:white;border-radius:1.5rem;padding:2.5rem 3rem;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+    <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em;color:#6b826b;margin-bottom:0.3rem;">Eindtotaal</div>
+    <div id="overlayBedrag" style="font-size:3.5rem;font-weight:800;color:#3a6b3a;letter-spacing:-0.02em;"></div>
+    <div id="overlayAantal" style="font-size:0.85rem;color:#6b826b;margin-top:0.3rem;"></div>
+    <button onclick="sluitOverlay()" style="margin-top:1.5rem;padding:0.7rem 2rem;background:#3a6b3a;color:white;border:none;border-radius:0.8rem;font-size:1rem;font-weight:700;cursor:pointer;">Sluiten</button>
+  </div>
+</div>
+
 <script>
   let prijzen = [];
   let herkenning = null;
@@ -316,7 +326,10 @@
           // Probeer alvast te verwerken als het al een herkenbare prijs is
           if (!verwerktInterim) {
             const resultaat = parsePrijs(tekst);
-            if (resultaat !== null && resultaat.bedrag > 0) {
+            if (resultaat && resultaat.commando === 'totaal') {
+              verwerktInterim = true;
+              toonTotaal();
+            } else if (resultaat !== null && resultaat.bedrag > 0) {
               verwerktInterim = true;
               voegPrijsToe(resultaat);
             }
@@ -325,13 +338,15 @@
           // Definitief resultaat
           if (!verwerktInterim) {
             const resultaat = parsePrijs(tekst);
-            if (resultaat !== null && resultaat.bedrag > 0) {
+            if (resultaat && resultaat.commando === 'totaal') {
+              toonTotaal();
+            } else if (resultaat !== null && resultaat.bedrag > 0) {
               voegPrijsToe(resultaat);
             } else {
               setStatus('Niet herkend: "' + tekst + '"');
             }
           }
-          verwerktInterim = false; // reset voor volgende spreekbeurt
+          verwerktInterim = false;
         }
       }
     };
@@ -390,14 +405,21 @@
     el.className = 'mic-status' + (actief ? ' actief' : '');
   }
 
+  // Spraakcommando's voor totaal
+  const totaalCommandos = ['totaal','is gelijk','gelijk','klaar','wat is het totaal','hoeveel','som','eindtotaal'];
+
   // Prijs parsen uit gesproken tekst — met vermenigvuldigen
   function parsePrijs(tekst) {
-    tekst = tekst.toLowerCase().trim();
+    const laag = tekst.toLowerCase().trim();
 
-    // Detecteer vermenigvuldiging:
-    // "3 keer 3,50" / "drie keer drie vijftig"
-    // "3 planten van 3,50" / "drie maal vier euro"
-    // "3x3,50"
+    // Detecteer totaal-commando
+    if (totaalCommandos.some(c => laag.includes(c))) {
+      return { commando: 'totaal' };
+    }
+
+    tekst = laag;
+
+    // Detecteer vermenigvuldiging
     const vermenigPatroon = /^(.+?)\s*(keer|maal|x|\s?planten?\s?van|\s?stuks?\s?van|\s?van)\s*(.+)$/i;
     const vm = tekst.match(vermenigPatroon);
     if (vm) {
@@ -438,11 +460,12 @@
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Directe getallen: "3.50", "3 50"
-    let m = tekst.match(/^(\d+)[.\s](\d{1,2})$/);
-    if (m) return parseFloat(m[1] + '.' + m[2].padEnd(2,'0'));
+    // Directe getallen met punt of spatie: "3.50", "10.50", "3 50", "10 50"
+    // Belangrijk: "10 50" moet 10,50 zijn, NIET 1050
+    let m = tekst.match(/^(\d+)[.\s](\d{2})$/);
+    if (m) return parseFloat(m[1] + '.' + m[2]);
 
-    m = tekst.match(/^(\d+(?:\.\d{1,2})?)$/);
+    m = tekst.match(/^(\d+)$/);
     if (m) return parseFloat(m[1]);
 
     const tientallen = {
@@ -456,12 +479,23 @@
       'zes':6,'zeven':7,'acht':8,'negen':9
     };
 
+    // Centen die als los woord kunnen voorkomen na het eurobedrag
+    // bijv. "tien vijftig" → tien euro + vijftig cent
+    const centWoorden = new Set([
+      'vijf','tien','vijftien','twintig','vijfentwintig',
+      'dertig','vijfendertig','veertig','vijfenveertig',
+      'vijftig','vijfenvijftig','zestig','vijfenzestig',
+      'zeventig','vijfenzeventig','tachtig','vijfentachtig',
+      'negentig','vijfennegentig'
+    ]);
+
     let eurodeel = null, centdeel = null;
 
     let parts = tekst.split(/\s*(komma|punt)\s*/);
     let eurotekst = parts[0].trim();
     let centtekst = parts.length > 1 ? parts.slice(1).join(' ').trim() : '';
 
+    // Twee losse woorden zonder komma/punt: eerste = euro, tweede = cent
     if (!tekst.match(/komma|punt/) && tekst.split(' ').length === 2) {
       let w = tekst.split(' ');
       eurotekst = w[0];
@@ -471,7 +505,18 @@
     eurodeel = parseWord(eurotekst, tientallen, eenheden);
     if (centtekst) {
       let c = parseWord(centtekst, tientallen, eenheden);
-      if (c !== null) centdeel = c <= 9 ? c * 10 : c;
+      if (c !== null) {
+        // Als eurodeel >= 10 en het centwoord is een tiental → centen
+        // bijv. "tien vijftig": eurodeel=10, c=50 → 10,50
+        // bijv. "drie vijf": eurodeel=3, c=5 → 3,50 (vijf cent = 5×10)
+        if (eurodeel >= 10 && c % 10 === 0 && c <= 95) {
+          centdeel = c; // al in centen, bijv. 50
+        } else if (c <= 9) {
+          centdeel = c * 10; // "vijf" → 50 cent
+        } else {
+          centdeel = c; // bijv. 25 → 25 cent
+        }
+      }
     }
 
     if (eurodeel !== null) {
@@ -531,6 +576,23 @@
       updateUI();
       setStatus('Tik op de microfoon en spreek een prijs in');
     }
+  }
+
+  function toonTotaal() {
+    const totaal = prijzen.reduce((s, p) => s + p.bedrag, 0);
+    if (prijzen.length === 0) {
+      setStatus('Nog geen prijzen ingevoerd.');
+      return;
+    }
+    const overlay = document.getElementById('totaalOverlay');
+    document.getElementById('overlayBedrag').textContent = '€ ' + formatBedrag(totaal);
+    document.getElementById('overlayAantal').textContent = prijzen.length + ' ' + (prijzen.length === 1 ? 'post' : 'posten');
+    overlay.style.display = 'flex';
+    setStatus('Totaal: € ' + formatBedrag(totaal));
+  }
+
+  function sluitOverlay() {
+    document.getElementById('totaalOverlay').style.display = 'none';
   }
 
   function formatBedrag(b) {

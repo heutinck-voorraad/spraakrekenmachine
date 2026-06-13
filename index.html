@@ -290,12 +290,15 @@
 </div>
 
 <!-- Totaal overlay -->
-<div id="totaalOverlay" style="display:none;position:fixed;inset:0;background:rgba(30,45,30,0.85);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:1rem;">
-  <div style="background:white;border-radius:1.5rem;padding:2.5rem 3rem;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
-    <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em;color:#6b826b;margin-bottom:0.3rem;">Eindtotaal</div>
-    <div id="overlayBedrag" style="font-size:3.5rem;font-weight:800;color:#3a6b3a;letter-spacing:-0.02em;"></div>
-    <div id="overlayAantal" style="font-size:0.85rem;color:#6b826b;margin-top:0.3rem;"></div>
-    <button onclick="sluitOverlay()" style="margin-top:1.5rem;padding:0.7rem 2rem;background:#3a6b3a;color:white;border:none;border-radius:0.8rem;font-size:1rem;font-weight:700;cursor:pointer;">Sluiten</button>
+<div id="totaalOverlay" style="display:none;position:fixed;inset:0;background:rgba(30,45,30,0.88);z-index:100;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;">
+  <div style="background:white;border-radius:1.5rem;padding:2rem 2rem 1.5rem;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.3);width:100%;max-width:340px;max-height:90dvh;display:flex;flex-direction:column;">
+    <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:#6b826b;margin-bottom:0.2rem;">Eindtotaal</div>
+    <div id="overlayBedrag" style="font-size:3rem;font-weight:800;color:#3a6b3a;letter-spacing:-0.02em;line-height:1.1;"></div>
+    <div id="overlayPlanten" style="font-size:1rem;font-weight:600;color:#6b826b;margin-top:0.2rem;margin-bottom:1rem;"></div>
+    <div style="border-top:1px solid #e8f0e8;padding-top:0.8rem;overflow-y:auto;flex:1;">
+      <div id="overlayRekensom" style="font-size:0.95rem;color:#1e2d1e;line-height:2;text-align:left;padding:0 0.5rem;font-variant-numeric:tabular-nums;"></div>
+    </div>
+    <button onclick="sluitOverlay()" style="margin-top:1.2rem;padding:0.7rem 2rem;background:#3a6b3a;color:white;border:none;border-radius:0.8rem;font-size:1rem;font-weight:700;cursor:pointer;flex-shrink:0;">Sluiten</button>
   </div>
 </div>
 
@@ -542,10 +545,15 @@
 
   function voegPrijsToe(resultaat) {
     const bedrag = Math.round(resultaat.bedrag * 100) / 100;
+    const aantalPlanten = resultaat.vermenigvuldigd ? resultaat.aantal : 1;
     const label = resultaat.vermenigvuldigd
       ? resultaat.aantal + ' × € ' + formatBedrag(resultaat.prijs)
       : null;
-    prijzen.push({ bedrag, label });
+    prijzen.push({ bedrag, label, aantalPlanten,
+      enkelprijsLabel: resultaat.vermenigvuldigd ? formatBedrag(resultaat.prijs) : formatBedrag(bedrag),
+      vermenigvuldigd: resultaat.vermenigvuldigd || false,
+      aantal: resultaat.aantal || 1
+    });
     updateUI();
     document.getElementById('handInput').value = '';
     const toon = resultaat.vermenigvuldigd
@@ -579,15 +587,30 @@
   }
 
   function toonTotaal() {
-    const totaal = prijzen.reduce((s, p) => s + p.bedrag, 0);
     if (prijzen.length === 0) {
       setStatus('Nog geen prijzen ingevoerd.');
       return;
     }
-    const overlay = document.getElementById('totaalOverlay');
+    const totaal = prijzen.reduce((s, p) => s + p.bedrag, 0);
+    const totaalPlanten = prijzen.reduce((s, p) => s + (p.aantalPlanten || 1), 0);
+
     document.getElementById('overlayBedrag').textContent = '€ ' + formatBedrag(totaal);
-    document.getElementById('overlayAantal').textContent = prijzen.length + ' ' + (prijzen.length === 1 ? 'post' : 'posten');
-    overlay.style.display = 'flex';
+    document.getElementById('overlayPlanten').textContent = totaalPlanten + ' ' + (totaalPlanten === 1 ? 'plant' : 'planten');
+
+    // Rekensom opbouwen
+    const rekensom = document.getElementById('overlayRekensom');
+    rekensom.innerHTML = '';
+    prijzen.forEach(p => {
+      const regel = document.createElement('div');
+      if (p.vermenigvuldigd) {
+        regel.textContent = p.aantal + ' × € ' + p.enkelprijsLabel;
+      } else {
+        regel.textContent = '€ ' + p.enkelprijsLabel;
+      }
+      rekensom.appendChild(regel);
+    });
+
+    document.getElementById('totaalOverlay').style.display = 'flex';
     setStatus('Totaal: € ' + formatBedrag(totaal));
   }
 

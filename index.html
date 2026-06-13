@@ -401,7 +401,17 @@
         } else {
           // Definitief resultaat — nu pas verwerken
           if (!verwerktInterim) {
-            verwerkTekst(tekst);
+            // DEBUG: grote rode melding met exacte Safari tekst
+            document.getElementById('micStatus').style.color = 'red';
+            document.getElementById('micStatus').style.fontSize = '1rem';
+            document.getElementById('micStatus').style.fontWeight = 'bold';
+            setStatus('▶ ' + tekst);
+            setTimeout(() => {
+              document.getElementById('micStatus').style.color = '';
+              document.getElementById('micStatus').style.fontSize = '';
+              document.getElementById('micStatus').style.fontWeight = '';
+              verwerkTekst(tekst);
+            }, 3000);
           }
           verwerktInterim = false;
         }

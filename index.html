@@ -84,17 +84,27 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .knoppen-rij {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
   }
 
   .mic-btn {
-    width: 90px;
-    height: 90px;
+    width: 82px;
+    height: 82px;
     border-radius: 50%;
     border: none;
     background: var(--accent);
     color: white;
-    font-size: 2.4rem;
+    font-size: 2.2rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -103,6 +113,7 @@
     transition: transform 0.1s, background 0.2s;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    flex-shrink: 0;
   }
 
   .mic-btn:active { transform: scale(0.93); }
@@ -112,10 +123,60 @@
     animation: puls 1s ease-in-out infinite;
   }
 
+  .mic-btn.gepauzeerd {
+    background: #e8a020;
+  }
+
   @keyframes puls {
     0%, 100% { box-shadow: 0 4px 18px rgba(185,74,72,0.3); }
     50%       { box-shadow: 0 4px 32px rgba(185,74,72,0.6); }
   }
+
+  .zij-knop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 1rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: transform 0.1s, opacity 0.2s;
+    padding: 0.5rem 0.7rem;
+    gap: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .zij-knop:active { transform: scale(0.93); }
+
+  .zij-knop.pauze-knop {
+    background: #fff8e6;
+    color: #c07000;
+    width: 70px;
+    height: 70px;
+    font-size: 1.6rem;
+    box-shadow: 0 3px 12px rgba(192,112,0,0.15);
+  }
+
+  .zij-knop.totaal-knop {
+    background: var(--groen);
+    color: white;
+    width: 70px;
+    height: 70px;
+    font-size: 1.4rem;
+    box-shadow: 0 3px 12px rgba(58,107,58,0.2);
+  }
+
+  .zij-knop span.knop-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+
+  .zij-knop:disabled { opacity: 0.35; pointer-events: none; }
 
   .mic-status {
     font-size: 0.82rem;
@@ -265,7 +326,17 @@
 </div>
 
 <div class="mic-wrap">
-  <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Spreek een prijs in">🎤</button>
+  <div class="knoppen-rij">
+    <button class="zij-knop pauze-knop" id="pauzeBtn" onclick="togglePauze()" disabled>
+      ⏸
+      <span class="knop-label">Pauze</span>
+    </button>
+    <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Spreek een prijs in">🎤</button>
+    <button class="zij-knop totaal-knop" id="totaalBtn" onclick="toonTotaal()">
+      ＝
+      <span class="knop-label">Totaal</span>
+    </button>
+  </div>
   <div class="mic-status" id="micStatus">Tik op de microfoon en spreek een prijs in</div>
 </div>
 
@@ -306,6 +377,7 @@
   let prijzen = [];
   let herkenning = null;
   let luistert = false;
+  let gepauzeerd = false;
   let verwerktInterim = false;
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -365,7 +437,7 @@
 
     // Bij continuous mode herstart Safari soms vanzelf — vang dat op
     herkenning.onend = () => {
-      if (luistert) {
+      if (luistert && !gepauzeerd) {
         try { herkenning.start(); } catch(err) {}
       }
     };
@@ -379,26 +451,60 @@
   function toggleMic() {
     if (!herkenning) return;
     if (luistert) {
+      gepauzeerd = false;
       herkenning.stop();
       stopMic();
     } else {
+      gepauzeerd = false;
       startMic();
+    }
+  }
+
+  function togglePauze() {
+    if (!luistert && !gepauzeerd) return;
+    if (gepauzeerd) {
+      // Hervatten
+      gepauzeerd = false;
+      document.getElementById('pauzeBtn').innerHTML = '⏸<span class="knop-label">Pauze</span>';
+      document.getElementById('micBtn').classList.add('luistert');
+      document.getElementById('micBtn').classList.remove('gepauzeerd');
+      document.getElementById('micBtn').textContent = '⏹';
+      setStatus('Luisteren... spreek een prijs in', true);
+      try { herkenning.start(); } catch(err) {}
+    } else {
+      // Pauzeren
+      gepauzeerd = true;
+      luistert = false;
+      try { herkenning.stop(); } catch(err) {}
+      document.getElementById('pauzeBtn').innerHTML = '▶️<span class="knop-label">Verder</span>';
+      document.getElementById('micBtn').classList.remove('luistert');
+      document.getElementById('micBtn').classList.add('gepauzeerd');
+      document.getElementById('micBtn').textContent = '⏸';
+      setStatus('Gepauzeerd — tik op ▶ om verder te gaan');
     }
   }
 
   function startMic() {
     luistert = true;
+    gepauzeerd = false;
     verwerktInterim = false;
     document.getElementById('micBtn').classList.add('luistert');
+    document.getElementById('micBtn').classList.remove('gepauzeerd');
     document.getElementById('micBtn').textContent = '⏹';
+    document.getElementById('pauzeBtn').disabled = false;
+    document.getElementById('pauzeBtn').innerHTML = '⏸<span class="knop-label">Pauze</span>';
     setStatus('Luisteren... spreek een prijs in', true);
     try { herkenning.start(); } catch(err) {}
   }
 
   function stopMic() {
     luistert = false;
+    gepauzeerd = false;
     document.getElementById('micBtn').classList.remove('luistert');
+    document.getElementById('micBtn').classList.remove('gepauzeerd');
     document.getElementById('micBtn').textContent = '🎤';
+    document.getElementById('pauzeBtn').disabled = true;
+    document.getElementById('pauzeBtn').innerHTML = '⏸<span class="knop-label">Pauze</span>';
     setStatus('Tik op de microfoon en spreek een prijs in');
   }
 

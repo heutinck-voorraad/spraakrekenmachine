@@ -293,38 +293,65 @@
   let prijzen = [];
   let herkenning = null;
   let luistert = false;
+  let verwerktInterim = false;
 
-  // Spraakherkenning opzetten
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (SpeechRecognition) {
     herkenning = new SpeechRecognition();
     herkenning.lang = 'nl-NL';
-    herkenning.continuous = false;
-    herkenning.interimResults = false;
+    herkenning.continuous = true;   // blijft doorluisteren
+    herkenning.interimResults = true; // verwerkt alvast tussentijdse tekst
 
     herkenning.onresult = (e) => {
-      const tekst = e.results[0][0].transcript.trim();
-      setStatus('Gehoord: "' + tekst + '"');
-      const resultaat = parsePrijs(tekst);
-      if (resultaat !== null && resultaat.bedrag > 0) {
-        voegPrijsToe(resultaat);
-      } else {
-        setStatus('Niet herkend. Zeg bijv. "drie vijftig" of "drie keer drie vijftig".');
+      // Loop door alle resultaten, pak de laatste
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const tekst = e.results[i][0].transcript.trim();
+        const isFinal = e.results[i].isFinal;
+
+        if (!isFinal) {
+          // Interim: laat zien wat gehoord wordt
+          setStatus('🎤 ' + tekst + '...', true);
+
+          // Probeer alvast te verwerken als het al een herkenbare prijs is
+          if (!verwerktInterim) {
+            const resultaat = parsePrijs(tekst);
+            if (resultaat !== null && resultaat.bedrag > 0) {
+              verwerktInterim = true;
+              voegPrijsToe(resultaat);
+            }
+          }
+        } else {
+          // Definitief resultaat
+          if (!verwerktInterim) {
+            const resultaat = parsePrijs(tekst);
+            if (resultaat !== null && resultaat.bedrag > 0) {
+              voegPrijsToe(resultaat);
+            } else {
+              setStatus('Niet herkend: "' + tekst + '"');
+            }
+          }
+          verwerktInterim = false; // reset voor volgende spreekbeurt
+        }
       }
-      stopMic();
     };
 
     herkenning.onerror = (e) => {
       if (e.error === 'no-speech') {
-        setStatus('Niets gehoord, probeer opnieuw.');
-      } else {
-        setStatus('Fout: ' + e.error);
+        // Bij continue mode: gewoon doorgaan
+        return;
       }
+      setStatus('Fout: ' + e.error);
       stopMic();
     };
 
-    herkenning.onend = () => { stopMic(); };
+    // Bij continuous mode herstart Safari soms vanzelf — vang dat op
+    herkenning.onend = () => {
+      if (luistert) {
+        try { herkenning.start(); } catch(err) {}
+      }
+    };
+
   } else {
     document.getElementById('geenSpraaK').style.display = 'block';
     document.getElementById('micBtn').style.opacity = '0.4';
@@ -343,21 +370,18 @@
 
   function startMic() {
     luistert = true;
+    verwerktInterim = false;
     document.getElementById('micBtn').classList.add('luistert');
     document.getElementById('micBtn').textContent = '⏹';
-    setStatus('Luisteren...', true);
-    herkenning.start();
+    setStatus('Luisteren... spreek een prijs in', true);
+    try { herkenning.start(); } catch(err) {}
   }
 
   function stopMic() {
     luistert = false;
     document.getElementById('micBtn').classList.remove('luistert');
     document.getElementById('micBtn').textContent = '🎤';
-    if (document.getElementById('micStatus').classList.contains('actief')) {
-      setTimeout(() => {
-        if (!luistert) setStatus('Tik op de microfoon en spreek een prijs in');
-      }, 2500);
-    }
+    setStatus('Tik op de microfoon en spreek een prijs in');
   }
 
   function setStatus(tekst, actief = false) {

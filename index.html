@@ -577,12 +577,35 @@
       const parts = tekst.split(/\s*euro\s*/);
       const eurotekst = parts[0].trim();
       const centtekst = parts.slice(1).join(' ').trim();
-      eurodeel = parseWord(eurotekst, tientallen, eenheden);
-      if (centtekst) {
-        const c = parseWord(centtekst, tientallen, eenheden);
-        if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
+
+      // eurotekst kan leeg zijn als zin begint met "euro 3.50"
+      if (eurotekst === '') {
+        // "euro 3.50" → gewoon het getal pakken
+        const m2 = centtekst.match(/^(\d+(?:\.\d{1,2})?)$/);
+        if (m2) return parseFloat(m2[1]);
       }
-      if (eurodeel !== null) return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
+
+      eurodeel = parseWord(eurotekst, tientallen, eenheden);
+      // eurotekst kan ook een cijfer zijn: "3" in "3 euro 50"
+      if (eurodeel === null && /^\d+$/.test(eurotekst)) eurodeel = parseInt(eurotekst);
+
+      if (eurodeel !== null) {
+        // centtekst kan een decimaal zijn: "3.50" of een woord: "vijftig"
+        let centdeel = null;
+        if (centtekst) {
+          const mCent = centtekst.match(/^(\d+(?:\.\d{1,2})?)$/);
+          if (mCent) {
+            // "euro 3.50" → het getal is al compleet
+            const vol = parseFloat(eurotekst + '.' + centtekst.replace('.',''));
+            // Check of centtekst een decimaal deel is (2 cijfers)
+            if (/^\d{2}$/.test(centtekst)) return eurodeel + parseInt(centtekst) / 100;
+            if (/^\d+\.\d+$/.test(centtekst)) return parseFloat(centtekst); // "euro 3.50" → 3.50
+          }
+          const c = parseWord(centtekst, tientallen, eenheden);
+          if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
+        }
+        return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
+      }
     }
 
     // Zonder "euro": twee losse woorden → eerste = euros, tweede = centen

@@ -401,17 +401,7 @@
         } else {
           // Definitief resultaat — nu pas verwerken
           if (!verwerktInterim) {
-            // DEBUG: grote rode melding met exacte Safari tekst
-            document.getElementById('micStatus').style.color = 'red';
-            document.getElementById('micStatus').style.fontSize = '1rem';
-            document.getElementById('micStatus').style.fontWeight = 'bold';
-            setStatus('▶ ' + tekst);
-            setTimeout(() => {
-              document.getElementById('micStatus').style.color = '';
-              document.getElementById('micStatus').style.fontSize = '';
-              document.getElementById('micStatus').style.fontWeight = '';
-              verwerkTekst(tekst);
-            }, 3000);
+            verwerkTekst(tekst);
           }
           verwerktInterim = false;
         }
@@ -554,14 +544,9 @@
   }
 
   // Parse een eurobedrag uit tekst
+  // Aanname: tekst is al genormaliseerd door parsePrijs (×→x, €→euro, ,→.)
   function parseEuroBedrag(tekst) {
-    // Normaliseer (tekst kan al genormaliseerd zijn vanuit parsePrijs)
-    tekst = tekst.toLowerCase()
-      .replace(/×/g, 'x')
-      .replace(/€\s*/g, 'euro ')
-      .replace(/,/g, '.')
-      .replace(/\s+/g, ' ')
-      .trim();
+    tekst = tekst.toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim();
 
     // Directe getallen: "3.50", "10.50", "3 50" (spatie als decimaal)
     let m = tekst.match(/^(\d+)[.](\d{2})$/);

@@ -395,31 +395,13 @@
         const isFinal = e.results[i].isFinal;
 
         if (!isFinal) {
-          // Interim: laat zien wat gehoord wordt
+          // Interim: alleen tonen ter info, NIET verwerken
+          // (anders wordt "3" al geboekt voordat "3,50" compleet is)
           setStatus('🎤 ' + tekst + '...', true);
-
-          // Probeer alvast te verwerken als het al een herkenbare prijs is
-          if (!verwerktInterim) {
-            const resultaat = parsePrijs(tekst);
-            if (resultaat && resultaat.commando === 'totaal') {
-              verwerktInterim = true;
-              toonTotaal();
-            } else if (resultaat !== null && resultaat.bedrag > 0) {
-              verwerktInterim = true;
-              voegPrijsToe(resultaat);
-            }
-          }
         } else {
-          // Definitief resultaat
+          // Definitief resultaat — nu pas verwerken
           if (!verwerktInterim) {
-            const resultaat = parsePrijs(tekst);
-            if (resultaat && resultaat.commando === 'totaal') {
-              toonTotaal();
-            } else if (resultaat !== null && resultaat.bedrag > 0) {
-              voegPrijsToe(resultaat);
-            } else {
-              setStatus('Niet herkend: "' + tekst + '"');
-            }
+            verwerkTekst(tekst);
           }
           verwerktInterim = false;
         }
@@ -647,6 +629,46 @@
       }
     }
     return null;
+  }
+
+  function verwerkTekst(tekst) {
+    const laag = tekst.toLowerCase().trim();
+
+    // Controleer eerst op totaal-commando in de hele zin
+    const totaalCommandos = ['totaal','is gelijk','gelijk','klaar','wat is het totaal','hoeveel','som','eindtotaal'];
+    if (totaalCommandos.some(c => laag.includes(c))) {
+      toonTotaal();
+      return;
+    }
+
+    // Splits op "plus" of "en" als scheidingsteken tussen prijzen
+    // Maar pas op: "vijfentwintig" bevat ook "en" — split alleen op los woord " plus " of " en "
+    // We splitsen op " plus " en bewaren "en" alleen als het een los woord is tussen twee prijzen
+    const delen = laag.split(/\s+plus\s+/);
+
+    let aantalVerwerkt = 0;
+    let nietHerkend = [];
+
+    delen.forEach(deel => {
+      deel = deel.trim();
+      if (!deel) return;
+      const resultaat = parsePrijs(deel);
+      if (resultaat && resultaat.commando === 'totaal') {
+        toonTotaal();
+        aantalVerwerkt++;
+      } else if (resultaat !== null && resultaat.bedrag > 0) {
+        voegPrijsToe(resultaat);
+        aantalVerwerkt++;
+      } else {
+        nietHerkend.push(deel);
+      }
+    });
+
+    if (aantalVerwerkt === 0) {
+      setStatus('Niet herkend: "' + tekst + '" — probeer opnieuw');
+    } else if (nietHerkend.length > 0) {
+      setStatus('Niet herkend: "' + nietHerkend.join(', ') + '"');
+    }
   }
 
   function voegPrijsToe(resultaat) {

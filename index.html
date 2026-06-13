@@ -401,9 +401,7 @@
         } else {
           // Definitief resultaat — nu pas verwerken
           if (!verwerktInterim) {
-            // DEBUG: toon exact wat Safari stuurt
-            setStatus('Safari zegt: "' + tekst + '"');
-            setTimeout(() => verwerkTekst(tekst), 1500);
+            verwerkTekst(tekst);
           }
           verwerktInterim = false;
         }
@@ -555,8 +553,11 @@
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Directe getallen: "3.50", "10.50"
+    // Directe getallen: "3.50", "10.50", "3 50" (spatie als decimaal)
     let m = tekst.match(/^(\d+)[.](\d{2})$/);
+    if (m) return parseFloat(m[1] + '.' + m[2]);
+    // "3 50" → 3.50  (Safari stuurt soms spatie ipv komma)
+    m = tekst.match(/^(\d+)\s+(\d{2})$/);
     if (m) return parseFloat(m[1] + '.' + m[2]);
     m = tekst.match(/^(\d+)$/);
     if (m) return parseFloat(m[1]);

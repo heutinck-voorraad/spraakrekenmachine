@@ -545,17 +545,11 @@
 
   // Parse een eurobedrag uit tekst
   function parseEuroBedrag(tekst) {
-    tekst = tekst.toLowerCase()
-      .replace(/euro/g, '')
-      .replace(/,/g, '.')
-      .replace(/\s+/g, ' ')
-      .trim();
+    tekst = tekst.toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim();
 
-    // Directe getallen met punt of spatie: "3.50", "10.50", "3 50", "10 50"
-    // Belangrijk: "10 50" moet 10,50 zijn, NIET 1050
-    let m = tekst.match(/^(\d+)[.\s](\d{2})$/);
+    // Directe getallen: "3.50", "10.50"
+    let m = tekst.match(/^(\d+)[.](\d{2})$/);
     if (m) return parseFloat(m[1] + '.' + m[2]);
-
     m = tekst.match(/^(\d+)$/);
     if (m) return parseFloat(m[1]);
 
@@ -570,48 +564,38 @@
       'zes':6,'zeven':7,'acht':8,'negen':9
     };
 
-    // Centen die als los woord kunnen voorkomen na het eurobedrag
-    // bijv. "tien vijftig" → tien euro + vijftig cent
-    const centWoorden = new Set([
-      'vijf','tien','vijftien','twintig','vijfentwintig',
-      'dertig','vijfendertig','veertig','vijfenveertig',
-      'vijftig','vijfenvijftig','zestig','vijfenzestig',
-      'zeventig','vijfenzeventig','tachtig','vijfentachtig',
-      'negentig','vijfennegentig'
-    ]);
-
     let eurodeel = null, centdeel = null;
 
-    let parts = tekst.split(/\s*(komma|punt)\s*/);
-    let eurotekst = parts[0].trim();
-    let centtekst = parts.length > 1 ? parts.slice(1).join(' ').trim() : '';
-
-    // Twee losse woorden zonder komma/punt: eerste = euro, tweede = cent
-    if (!tekst.match(/komma|punt/) && tekst.split(' ').length === 2) {
-      let w = tekst.split(' ');
-      eurotekst = w[0];
-      centtekst = w[1];
+    // Eerst proberen met "euro" als ankerpunt — meest betrouwbaar
+    if (tekst.includes('euro')) {
+      const parts = tekst.split(/\s*euro\s*/);
+      const eurotekst = parts[0].trim();
+      const centtekst = parts.slice(1).join(' ').trim();
+      eurodeel = parseWord(eurotekst, tientallen, eenheden);
+      if (centtekst) {
+        const c = parseWord(centtekst, tientallen, eenheden);
+        if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
+      }
+      if (eurodeel !== null) return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
     }
 
-    eurodeel = parseWord(eurotekst, tientallen, eenheden);
-    if (centtekst) {
-      let c = parseWord(centtekst, tientallen, eenheden);
-      if (c !== null) {
-        // Als eurodeel >= 10 en het centwoord is een tiental → centen
-        // bijv. "tien vijftig": eurodeel=10, c=50 → 10,50
-        // bijv. "drie vijf": eurodeel=3, c=5 → 3,50 (vijf cent = 5×10)
-        if (eurodeel >= 10 && c % 10 === 0 && c <= 95) {
-          centdeel = c; // al in centen, bijv. 50
-        } else if (c <= 9) {
-          centdeel = c * 10; // "vijf" → 50 cent
-        } else {
-          centdeel = c; // bijv. 25 → 25 cent
-        }
+    // Zonder "euro": twee losse woorden → eerste = euros, tweede = centen
+    const woorden = tekst.split(' ');
+    if (woorden.length === 2) {
+      const eurotekst = woorden[0];
+      const centtekst = woorden[1];
+      eurodeel = parseWord(eurotekst, tientallen, eenheden);
+      if (eurodeel !== null) {
+        const c = parseWord(centtekst, tientallen, eenheden);
+        if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
+        return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
       }
     }
 
-    if (eurodeel !== null) {
-      return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
+    // Één woord zonder euro
+    if (woorden.length === 1) {
+      eurodeel = parseWord(tekst, tientallen, eenheden);
+      if (eurodeel !== null) return eurodeel;
     }
 
     return null;

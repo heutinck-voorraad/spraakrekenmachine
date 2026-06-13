@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Prijzen optellen – Sas' Mini-Kwekerij</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --groen:     #3a6b3a;
+    --lichtgroen:#e8f0e8;
+    --accent:    #7baa5a;
+    --tekst:     #1e2d1e;
+    --zacht:     #6b826b;
+    --fout:      #b94a48;
+    --wit:       #f7faf7;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--lichtgroen);
+    color: var(--tekst);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.2rem 1rem 2rem;
+    gap: 1rem;
+  }
+
+  header {
+    text-align: center;
+    padding-top: 0.4rem;
+  }
+
+  header h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--groen);
+    letter-spacing: 0.01em;
+  }
+
+  header p {
+    font-size: 0.8rem;
+    color: var(--zacht);
+    margin-top: 0.15rem;
+  }
+
+  /* Totaal */
+  .totaal-box {
+    background: var(--groen);
+    color: white;
+    border-radius: 1.2rem;
+    padding: 1.2rem 2rem;
+    text-align: center;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .totaal-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+
+  .totaal-bedrag {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-top: 0.1rem;
+  }
+
+  .totaal-aantal {
+    font-size: 0.78rem;
+    opacity: 0.65;
+    margin-top: 0.3rem;
+  }
+
+  /* Microfoon knop */
+  .mic-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .mic-btn {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 2.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 18px rgba(58,107,58,0.25);
+    transition: transform 0.1s, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .mic-btn:active { transform: scale(0.93); }
+
+  .mic-btn.luistert {
+    background: var(--fout);
+    animation: puls 1s ease-in-out infinite;
+  }
+
+  @keyframes puls {
+    0%, 100% { box-shadow: 0 4px 18px rgba(185,74,72,0.3); }
+    50%       { box-shadow: 0 4px 32px rgba(185,74,72,0.6); }
+  }
+
+  .mic-status {
+    font-size: 0.82rem;
+    color: var(--zacht);
+    min-height: 1.2em;
+    text-align: center;
+  }
+
+  .mic-status.actief { color: var(--fout); font-weight: 600; }
+
+  /* Handmatige invoer */
+  .handmatig {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .handmatig input {
+    flex: 1;
+    padding: 0.65rem 0.9rem;
+    border: 2px solid #c8d8c8;
+    border-radius: 0.7rem;
+    font-size: 1.1rem;
+    background: white;
+    color: var(--tekst);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .handmatig input:focus { border-color: var(--accent); }
+
+  .handmatig button {
+    padding: 0.65rem 1.1rem;
+    background: var(--groen);
+    color: white;
+    border: none;
+    border-radius: 0.7rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .handmatig button:active { background: var(--accent); }
+
+  /* Lijst */
+  .lijst-wrap {
+    width: 100%;
+    max-width: 360px;
+    flex: 1;
+  }
+
+  .lijst-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  .lijst-header span {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--zacht);
+    font-weight: 600;
+  }
+
+  .wis-alles {
+    font-size: 0.75rem;
+    color: var(--fout);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.1rem 0;
+    font-weight: 600;
+  }
+
+  .lijst {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 38vh;
+    overflow-y: auto;
+  }
+
+  .lijst li {
+    background: white;
+    border-radius: 0.65rem;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .lijst li .prijs-val { font-weight: 700; color: var(--groen); white-space: nowrap; }
+  .lijst li .prijs-label { flex: 1; font-size: 0.88rem; color: var(--zacht); padding-right: 0.4rem; }
+
+  .lijst li .verwijder {
+    background: none;
+    border: none;
+    color: #bbb;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    line-height: 1;
+  }
+
+  .lijst li .verwijder:active { color: var(--fout); }
+
+  .leeg {
+    text-align: center;
+    color: var(--zacht);
+    font-size: 0.85rem;
+    padding: 1.2rem 0;
+  }
+
+  /* Geen spraak melding */
+  .geen-spraak {
+    display: none;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.8rem;
+    color: #856404;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 Prijzen optellen</h1>
+  <p>Sas' Mini-Kwekerij Brummen</p>
+</header>
+
+<div class="totaal-box">
+  <div class="totaal-label">Totaal</div>
+  <div class="totaal-bedrag" id="totaal">€ 0,00</div>
+  <div class="totaal-aantal" id="aantal">0 prijzen ingevoerd</div>
+</div>
+
+<div class="mic-wrap">
+  <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Spreek een prijs in">🎤</button>
+  <div class="mic-status" id="micStatus">Tik op de microfoon en spreek een prijs in</div>
+</div>
+
+<div class="geen-spraak" id="geenSpraaK">
+  Spraakherkenning werkt niet in deze browser. Gebruik Chrome of Safari en typ hieronder.
+</div>
+
+<div class="handmatig">
+  <input type="number" id="handInput" placeholder="bijv. 3.50" step="0.01" min="0"
+    inputmode="decimal" onkeydown="if(event.key==='Enter') voegToe()">
+  <button onclick="voegToe()">＋</button>
+</div>
+
+<div class="lijst-wrap">
+  <div class="lijst-header">
+    <span>Prijzen</span>
+    <button class="wis-alles" onclick="wisAlles()">Alles wissen</button>
+  </div>
+  <ul class="lijst" id="lijst">
+    <li class="leeg" id="leegMsg">Nog geen prijzen toegevoegd</li>
+  </ul>
+</div>
+
+<script>
+  let prijzen = [];
+  let herkenning = null;
+  let luistert = false;
+
+  // Spraakherkenning opzetten
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    herkenning = new SpeechRecognition();
+    herkenning.lang = 'nl-NL';
+    herkenning.continuous = false;
+    herkenning.interimResults = false;
+
+    herkenning.onresult = (e) => {
+      const tekst = e.results[0][0].transcript.trim();
+      setStatus('Gehoord: "' + tekst + '"');
+      const resultaat = parsePrijs(tekst);
+      if (resultaat !== null && resultaat.bedrag > 0) {
+        voegPrijsToe(resultaat);
+      } else {
+        setStatus('Niet herkend. Zeg bijv. "drie vijftig" of "drie keer drie vijftig".');
+      }
+      stopMic();
+    };
+
+    herkenning.onerror = (e) => {
+      if (e.error === 'no-speech') {
+        setStatus('Niets gehoord, probeer opnieuw.');
+      } else {
+        setStatus('Fout: ' + e.error);
+      }
+      stopMic();
+    };
+
+    herkenning.onend = () => { stopMic(); };
+  } else {
+    document.getElementById('geenSpraaK').style.display = 'block';
+    document.getElementById('micBtn').style.opacity = '0.4';
+    document.getElementById('micBtn').style.pointerEvents = 'none';
+  }
+
+  function toggleMic() {
+    if (!herkenning) return;
+    if (luistert) {
+      herkenning.stop();
+      stopMic();
+    } else {
+      startMic();
+    }
+  }
+
+  function startMic() {
+    luistert = true;
+    document.getElementById('micBtn').classList.add('luistert');
+    document.getElementById('micBtn').textContent = '⏹';
+    setStatus('Luisteren...', true);
+    herkenning.start();
+  }
+
+  function stopMic() {
+    luistert = false;
+    document.getElementById('micBtn').classList.remove('luistert');
+    document.getElementById('micBtn').textContent = '🎤';
+    if (document.getElementById('micStatus').classList.contains('actief')) {
+      setTimeout(() => {
+        if (!luistert) setStatus('Tik op de microfoon en spreek een prijs in');
+      }, 2500);
+    }
+  }
+
+  function setStatus(tekst, actief = false) {
+    const el = document.getElementById('micStatus');
+    el.textContent = tekst;
+    el.className = 'mic-status' + (actief ? ' actief' : '');
+  }
+
+  // Prijs parsen uit gesproken tekst — met vermenigvuldigen
+  function parsePrijs(tekst) {
+    tekst = tekst.toLowerCase().trim();
+
+    // Detecteer vermenigvuldiging:
+    // "3 keer 3,50" / "drie keer drie vijftig"
+    // "3 planten van 3,50" / "drie maal vier euro"
+    // "3x3,50"
+    const vermenigPatroon = /^(.+?)\s*(keer|maal|x|\s?planten?\s?van|\s?stuks?\s?van|\s?van)\s*(.+)$/i;
+    const vm = tekst.match(vermenigPatroon);
+    if (vm) {
+      const aantalRaw = vm[1].trim();
+      const prijsRaw  = vm[3].trim();
+      const aantal = parseEnkelGetal(aantalRaw);
+      const prijs  = parseEuroBedrag(prijsRaw);
+      if (aantal !== null && prijs !== null && aantal > 0) {
+        return { bedrag: prijs * aantal, aantal, prijs, vermenigvuldigd: true };
+      }
+    }
+
+    // Enkelvoudig bedrag
+    const bedrag = parseEuroBedrag(tekst);
+    if (bedrag !== null) return { bedrag, vermenigvuldigd: false };
+
+    return null;
+  }
+
+  // Parse een enkel geheel getal (voor het aantal)
+  function parseEnkelGetal(tekst) {
+    tekst = tekst.trim();
+    if (/^\d+$/.test(tekst)) return parseInt(tekst);
+    const eenheden = {
+      'een':1,'twee':2,'drie':3,'vier':4,'vijf':5,
+      'zes':6,'zeven':7,'acht':8,'negen':9,'tien':10,
+      'elf':11,'twaalf':12,'dertien':13,'veertien':14,'vijftien':15,
+      'twintig':20,'dertig':30,'veertig':40,'vijftig':50
+    };
+    return eenheden[tekst] ?? null;
+  }
+
+  // Parse een eurobedrag uit tekst
+  function parseEuroBedrag(tekst) {
+    tekst = tekst.toLowerCase()
+      .replace(/euro/g, '')
+      .replace(/,/g, '.')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Directe getallen: "3.50", "3 50"
+    let m = tekst.match(/^(\d+)[.\s](\d{1,2})$/);
+    if (m) return parseFloat(m[1] + '.' + m[2].padEnd(2,'0'));
+
+    m = tekst.match(/^(\d+(?:\.\d{1,2})?)$/);
+    if (m) return parseFloat(m[1]);
+
+    const tientallen = {
+      'tien':10,'elf':11,'twaalf':12,'dertien':13,'veertien':14,
+      'vijftien':15,'zestien':16,'zeventien':17,'achttien':18,'negentien':19,
+      'twintig':20,'dertig':30,'veertig':40,'vijftig':50,'zestig':60,
+      'zeventig':70,'tachtig':80,'negentig':90
+    };
+    const eenheden = {
+      'nul':0,'een':1,'twee':2,'drie':3,'vier':4,'vijf':5,
+      'zes':6,'zeven':7,'acht':8,'negen':9
+    };
+
+    let eurodeel = null, centdeel = null;
+
+    let parts = tekst.split(/\s*(komma|punt)\s*/);
+    let eurotekst = parts[0].trim();
+    let centtekst = parts.length > 1 ? parts.slice(1).join(' ').trim() : '';
+
+    if (!tekst.match(/komma|punt/) && tekst.split(' ').length === 2) {
+      let w = tekst.split(' ');
+      eurotekst = w[0];
+      centtekst = w[1];
+    }
+
+    eurodeel = parseWord(eurotekst, tientallen, eenheden);
+    if (centtekst) {
+      let c = parseWord(centtekst, tientallen, eenheden);
+      if (c !== null) centdeel = c <= 9 ? c * 10 : c;
+    }
+
+    if (eurodeel !== null) {
+      return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
+    }
+
+    return null;
+  }
+
+  function parseWord(tekst, tientallen, eenheden) {
+    tekst = tekst.trim();
+    if (!tekst) return null;
+    if (/^\d+$/.test(tekst)) return parseInt(tekst);
+    if (tientallen[tekst] !== undefined) return tientallen[tekst];
+    if (eenheden[tekst] !== undefined) return eenheden[tekst];
+    for (const [t, tv] of Object.entries(tientallen)) {
+      for (const [e, ev] of Object.entries(eenheden)) {
+        if (tekst === e + 'en' + t || tekst === e + '-en-' + t) return tv + ev;
+      }
+    }
+    return null;
+  }
+
+  function voegPrijsToe(resultaat) {
+    const bedrag = Math.round(resultaat.bedrag * 100) / 100;
+    const label = resultaat.vermenigvuldigd
+      ? resultaat.aantal + ' × € ' + formatBedrag(resultaat.prijs)
+      : null;
+    prijzen.push({ bedrag, label });
+    updateUI();
+    document.getElementById('handInput').value = '';
+    const toon = resultaat.vermenigvuldigd
+      ? '✓ ' + resultaat.aantal + ' × € ' + formatBedrag(resultaat.prijs) + ' = € ' + formatBedrag(bedrag)
+      : '✓ € ' + formatBedrag(bedrag) + ' toegevoegd';
+    setStatus(toon);
+  }
+
+  function voegToe() {
+    const inp = document.getElementById('handInput');
+    const val = parseFloat(inp.value.replace(',', '.'));
+    if (isNaN(val) || val <= 0) {
+      inp.focus();
+      return;
+    }
+    voegPrijsToe({ bedrag: val, vermenigvuldigd: false });
+  }
+
+  function verwijder(index) {
+    prijzen.splice(index, 1);
+    updateUI();
+  }
+
+  function wisAlles() {
+    if (prijzen.length === 0) return;
+    if (confirm('Alle prijzen wissen?')) {
+      prijzen = [];
+      updateUI();
+      setStatus('Tik op de microfoon en spreek een prijs in');
+    }
+  }
+
+  function formatBedrag(b) {
+    return b.toFixed(2).replace('.', ',');
+  }
+
+  function updateUI() {
+    const totaal = prijzen.reduce((s, p) => s + p.bedrag, 0);
+    document.getElementById('totaal').textContent = '€ ' + formatBedrag(totaal);
+    document.getElementById('aantal').textContent =
+      prijzen.length + ' ' + (prijzen.length === 1 ? 'post' : 'posten') + ' ingevoerd';
+
+    const lijst = document.getElementById('lijst');
+    const leeg  = document.getElementById('leegMsg');
+
+    if (prijzen.length === 0) {
+      lijst.innerHTML = '';
+      lijst.appendChild(leeg);
+    } else {
+      lijst.innerHTML = '';
+      [...prijzen].reverse().forEach((p, ri) => {
+        const i = prijzen.length - 1 - ri;
+        const li = document.createElement('li');
+        const omschrijving = p.label
+          ? `<span class="prijs-label">${p.label}</span>`
+          : `<span class="prijs-label">€ ${formatBedrag(p.bedrag)}</span>`;
+        const bedragSpan = p.label
+          ? `<span class="prijs-val">€ ${formatBedrag(p.bedrag)}</span>`
+          : `<span></span>`;
+        li.innerHTML = omschrijving + bedragSpan +
+          `<button class="verwijder" onclick="verwijder(${i})" title="Verwijder">✕</button>`;
+        lijst.appendChild(li);
+      });
+    }
+  }
+</script>
+</body>
+</html>

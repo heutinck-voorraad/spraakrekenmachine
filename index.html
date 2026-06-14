@@ -585,20 +585,26 @@
   function parseEnkelGetal(tekst) { return parseAantal(tekst); }
 
   function voegPrijsToe(resultaat) {
-    const bedrag = Math.round(resultaat.bedrag * 100) / 100;
-    const aantalPlanten = resultaat.vermenigvuldigd ? resultaat.aantal : 1;
-    const label = resultaat.vermenigvuldigd
-      ? resultaat.aantal + ' × € ' + formatBedrag(resultaat.prijs)
+    const bedrag = Math.round((resultaat.bedrag || 0) * 100) / 100;
+    if (bedrag <= 0) return;
+    const isVerm = !!resultaat.vermenigvuldigd;
+    const aantalPlanten = isVerm ? (resultaat.aantal || 1) : 1;
+    const stukprijs = isVerm ? resultaat.prijs : bedrag;
+    const label = isVerm
+      ? resultaat.aantal + ' × € ' + formatBedrag(stukprijs)
       : null;
-    prijzen.push({ bedrag, label, aantalPlanten,
-      enkelprijsLabel: resultaat.vermenigvuldigd ? formatBedrag(resultaat.prijs) : formatBedrag(bedrag),
-      vermenigvuldigd: resultaat.vermenigvuldigd || false,
-      aantal: resultaat.aantal || 1
+    prijzen.push({
+      bedrag,
+      label,
+      aantalPlanten,
+      enkelprijsLabel: formatBedrag(stukprijs),
+      vermenigvuldigd: isVerm,
+      aantal: isVerm ? resultaat.aantal : 1
     });
     updateUI();
     document.getElementById('handInput').value = '';
-    const toon = resultaat.vermenigvuldigd
-      ? '✓ ' + resultaat.aantal + ' × € ' + formatBedrag(resultaat.prijs) + ' = € ' + formatBedrag(bedrag)
+    const toon = isVerm
+      ? '✓ ' + resultaat.aantal + ' × € ' + formatBedrag(stukprijs) + ' = € ' + formatBedrag(bedrag)
       : '✓ € ' + formatBedrag(bedrag) + ' toegevoegd';
     setStatus(toon);
   }

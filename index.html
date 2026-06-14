@@ -496,191 +496,93 @@
     el.className = 'mic-status' + (actief ? ' actief' : '');
   }
 
-  // Spraakcommando's voor totaal
-  const totaalCommandos = ['totaal','is gelijk','gelijk','klaar','wat is het totaal','hoeveel','som','eindtotaal'];
+  // Woordenboeken
+  const TIENTALLEN = {'tien':10,'elf':11,'twaalf':12,'dertien':13,'veertien':14,'vijftien':15,'zestien':16,'zeventien':17,'achttien':18,'negentien':19,'twintig':20,'dertig':30,'veertig':40,'vijftig':50,'zestig':60,'zeventig':70,'tachtig':80,'negentig':90};
+  const EENHEDEN = {'nul':0,'een':1,'twee':2,'drie':3,'vier':4,'vijf':5,'zes':6,'zeven':7,'acht':8,'negen':9};
+  const GETALLEN = {...TIENTALLEN, ...EENHEDEN};
+  const TOTAAL_CMDS = ['totaal','is gelijk','gelijk','klaar','wat is het totaal','hoeveel','som','eindtotaal'];
 
-  // Prijs parsen uit gesproken tekst — met vermenigvuldigen
+  function woordNaarGetal(w) {
+    w = w.trim();
+    if (/^\d+$/.test(w)) return parseInt(w);
+    if (GETALLEN[w] !== undefined) return GETALLEN[w];
+    for (const [t,tv] of Object.entries(TIENTALLEN))
+      for (const [e,ev] of Object.entries(EENHEDEN))
+        if (w === e+'en'+t) return tv+ev;
+    return null;
+  }
+
+  function parseBedrag(s) {
+    s = s.trim().toLowerCase()
+      .replace(/×/g, 'x').replace(/komma/g, '.').replace(/punt/g, '.')
+      .replace(/,/g, '.').replace(/\s+/g, ' ');
+
+    // Directe decimalen: "3.50"
+    let m = s.match(/^(\d+)\.(\d{1,2})$/);
+    if (m) return parseFloat(m[1]+'.'+m[2].padEnd(2,'0'));
+
+    // Met "euro" als ankerpunt
+    if (s.includes('euro')) {
+      const [euroGedeelte, ...rest] = s.split('euro');
+      const euros = woordNaarGetal(euroGedeelte.trim());
+      if (euros !== null) {
+        const centTekst = rest.join('euro').trim();
+        if (!centTekst) return euros;
+        const centGetal = woordNaarGetal(centTekst);
+        if (centGetal !== null) return euros + (centGetal <= 9 ? centGetal*10 : centGetal)/100;
+        const m2 = centTekst.match(/^(\d{1,2})$/);
+        if (m2) return euros + parseInt(m2[1])/100;
+      }
+    }
+
+    // Twee losse woorden/getallen: "drie vijftig", "3 50"
+    const delen = s.split(' ');
+    if (delen.length === 2) {
+      const euro = woordNaarGetal(delen[0]);
+      const cent = woordNaarGetal(delen[1]);
+      if (euro !== null && cent !== null)
+        return euro + (cent <= 9 ? cent*10 : cent)/100;
+      const m3 = s.match(/^(\d+)\s+(\d{2})$/);
+      if (m3) return parseFloat(m3[1]+'.'+m3[2]);
+    }
+
+    // Enkel getal/woord
+    if (delen.length === 1) {
+      const v = woordNaarGetal(s);
+      if (v !== null) return v;
+    }
+
+    return null;
+  }
+
+  function parseAantal(s) {
+    if (/^\d+$/.test(s)) return parseInt(s);
+    return GETALLEN[s] ?? null;
+  }
+
   function parsePrijs(tekst) {
     const laag = tekst.toLowerCase().trim();
+    if (TOTAAL_CMDS.some(c => laag.includes(c))) return { commando: 'totaal' };
 
-    // Detecteer totaal-commando
-    if (totaalCommandos.some(c => laag.includes(c))) {
-      return { commando: 'totaal' };
-    }
+    let s = laag
+      .replace(/×/g, 'x').replace(/komma/g, '.').replace(/,/g, '.').replace(/\s+/g, ' ');
 
-    tekst = laag;
-
-    // Detecteer vermenigvuldiging
-    const vermenigPatroon = /^(.+?)\s*(keer|maal|x|\s?planten?\s?van|\s?stuks?\s?van|\s?van)\s*(.+)$/i;
-    const vm = tekst.match(vermenigPatroon);
+    // Vermenigvuldigen: splits op keer/maal/x
+    const vm = s.match(/^(.+?)\s*(keer|maal|\bx\b)\s*(.+)$/i);
     if (vm) {
-      const aantalRaw = vm[1].trim();
-      const prijsRaw  = vm[3].trim();
-      const aantal = parseEnkelGetal(aantalRaw);
-      const prijs  = parseEuroBedrag(prijsRaw);
-      if (aantal !== null && prijs !== null && aantal > 0) {
-        return { bedrag: prijs * aantal, aantal, prijs, vermenigvuldigd: true };
-      }
+      const aantal = parseAantal(vm[1].trim());
+      const prijs  = parseBedrag(vm[3].trim());
+      if (aantal !== null && prijs !== null && aantal > 0)
+        return { bedrag: prijs*aantal, aantal, prijs, vermenigvuldigd: true };
     }
 
-    // Enkelvoudig bedrag
-    const bedrag = parseEuroBedrag(tekst);
+    const bedrag = parseBedrag(s);
     if (bedrag !== null) return { bedrag, vermenigvuldigd: false };
-
     return null;
   }
 
-  // Parse een enkel geheel getal (voor het aantal)
-  function parseEnkelGetal(tekst) {
-    tekst = tekst.trim();
-    if (/^\d+$/.test(tekst)) return parseInt(tekst);
-    const eenheden = {
-      'een':1,'twee':2,'drie':3,'vier':4,'vijf':5,
-      'zes':6,'zeven':7,'acht':8,'negen':9,'tien':10,
-      'elf':11,'twaalf':12,'dertien':13,'veertien':14,'vijftien':15,
-      'twintig':20,'dertig':30,'veertig':40,'vijftig':50
-    };
-    return eenheden[tekst] ?? null;
-  }
-
-  // Parse een eurobedrag uit tekst
-  // Aanname: tekst is al genormaliseerd door parsePrijs (×→x, €→euro, ,→.)
-  function parseEuroBedrag(tekst) {
-    tekst = tekst.toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim();
-
-    // Directe getallen: "3.50", "10.50", "3 50" (spatie als decimaal)
-    let m = tekst.match(/^(\d+)[.](\d{2})$/);
-    if (m) return parseFloat(m[1] + '.' + m[2]);
-    // "3 50" → 3.50  (Safari stuurt soms spatie ipv komma)
-    m = tekst.match(/^(\d+)\s+(\d{2})$/);
-    if (m) return parseFloat(m[1] + '.' + m[2]);
-    m = tekst.match(/^(\d+)$/);
-    if (m) return parseFloat(m[1]);
-
-    const tientallen = {
-      'tien':10,'elf':11,'twaalf':12,'dertien':13,'veertien':14,
-      'vijftien':15,'zestien':16,'zeventien':17,'achttien':18,'negentien':19,
-      'twintig':20,'dertig':30,'veertig':40,'vijftig':50,'zestig':60,
-      'zeventig':70,'tachtig':80,'negentig':90
-    };
-    const eenheden = {
-      'nul':0,'een':1,'twee':2,'drie':3,'vier':4,'vijf':5,
-      'zes':6,'zeven':7,'acht':8,'negen':9
-    };
-
-    let eurodeel = null, centdeel = null;
-
-    // Eerst proberen met "euro" als ankerpunt — meest betrouwbaar
-    if (tekst.includes('euro')) {
-      const parts = tekst.split(/\s*euro\s*/);
-      const eurotekst = parts[0].trim();
-      const centtekst = parts.slice(1).join(' ').trim();
-
-      // eurotekst kan leeg zijn als zin begint met "euro 3.50"
-      if (eurotekst === '') {
-        // "euro 3.50" → gewoon het getal pakken
-        const m2 = centtekst.match(/^(\d+(?:\.\d{1,2})?)$/);
-        if (m2) return parseFloat(m2[1]);
-      }
-
-      eurodeel = parseWord(eurotekst, tientallen, eenheden);
-      // eurotekst kan ook een cijfer zijn: "3" in "3 euro 50"
-      if (eurodeel === null && /^\d+$/.test(eurotekst)) eurodeel = parseInt(eurotekst);
-
-      if (eurodeel !== null) {
-        // centtekst kan een decimaal zijn: "3.50" of een woord: "vijftig"
-        let centdeel = null;
-        if (centtekst) {
-          const mCent = centtekst.match(/^(\d+(?:\.\d{1,2})?)$/);
-          if (mCent) {
-            // "euro 3.50" → het getal is al compleet
-            const vol = parseFloat(eurotekst + '.' + centtekst.replace('.',''));
-            // Check of centtekst een decimaal deel is (2 cijfers)
-            if (/^\d{2}$/.test(centtekst)) return eurodeel + parseInt(centtekst) / 100;
-            if (/^\d+\.\d+$/.test(centtekst)) return parseFloat(centtekst); // "euro 3.50" → 3.50
-          }
-          const c = parseWord(centtekst, tientallen, eenheden);
-          if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
-        }
-        return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
-      }
-    }
-
-    // Zonder "euro": twee losse woorden → eerste = euros, tweede = centen
-    const woorden = tekst.split(' ');
-    if (woorden.length === 2) {
-      const eurotekst = woorden[0];
-      const centtekst = woorden[1];
-      eurodeel = parseWord(eurotekst, tientallen, eenheden);
-      if (eurodeel !== null) {
-        const c = parseWord(centtekst, tientallen, eenheden);
-        if (c !== null) centdeel = eurodeel >= 10 && c % 10 === 0 && c <= 95 ? c : c <= 9 ? c * 10 : c;
-        return eurodeel + (centdeel !== null ? centdeel / 100 : 0);
-      }
-    }
-
-    // Één woord zonder euro
-    if (woorden.length === 1) {
-      eurodeel = parseWord(tekst, tientallen, eenheden);
-      if (eurodeel !== null) return eurodeel;
-    }
-
-    return null;
-  }
-
-  function parseWord(tekst, tientallen, eenheden) {
-    tekst = tekst.trim();
-    if (!tekst) return null;
-    if (/^\d+$/.test(tekst)) return parseInt(tekst);
-    if (tientallen[tekst] !== undefined) return tientallen[tekst];
-    if (eenheden[tekst] !== undefined) return eenheden[tekst];
-    for (const [t, tv] of Object.entries(tientallen)) {
-      for (const [e, ev] of Object.entries(eenheden)) {
-        if (tekst === e + 'en' + t || tekst === e + '-en-' + t) return tv + ev;
-      }
-    }
-    return null;
-  }
-
-  function verwerkTekst(tekst) {
-    const laag = tekst.toLowerCase().trim();
-
-    // Controleer eerst op totaal-commando in de hele zin
-    const totaalCommandos = ['totaal','is gelijk','gelijk','klaar','wat is het totaal','hoeveel','som','eindtotaal'];
-    if (totaalCommandos.some(c => laag.includes(c))) {
-      toonTotaal();
-      return;
-    }
-
-    // Splits op "plus" of "en" als scheidingsteken tussen prijzen
-    // Maar pas op: "vijfentwintig" bevat ook "en" — split alleen op los woord " plus " of " en "
-    // We splitsen op " plus " en bewaren "en" alleen als het een los woord is tussen twee prijzen
-    const delen = laag.split(/\s+plus\s+/);
-
-    let aantalVerwerkt = 0;
-    let nietHerkend = [];
-
-    delen.forEach(deel => {
-      deel = deel.trim();
-      if (!deel) return;
-      const resultaat = parsePrijs(deel);
-      if (resultaat && resultaat.commando === 'totaal') {
-        toonTotaal();
-        aantalVerwerkt++;
-      } else if (resultaat !== null && resultaat.bedrag > 0) {
-        voegPrijsToe(resultaat);
-        aantalVerwerkt++;
-      } else {
-        nietHerkend.push(deel);
-      }
-    });
-
-    if (aantalVerwerkt === 0) {
-      setStatus('Niet herkend: "' + tekst + '" — probeer opnieuw');
-    } else if (nietHerkend.length > 0) {
-      setStatus('Niet herkend: "' + nietHerkend.join(', ') + '"');
-    }
-  }
+  // Parse een enkel geheel getal (voor het aantal) - legacy
+  function parseEnkelGetal(tekst) { return parseAantal(tekst); }
 
   function voegPrijsToe(resultaat) {
     const bedrag = Math.round(resultaat.bedrag * 100) / 100;
